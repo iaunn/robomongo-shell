@@ -139,7 +139,7 @@ Message DBClientCursor::_assembleInit() {
 
             //// Robo 1.4.2
             std::string const N_TO_RETURN { "ntoreturn" };
-            if(_client->isDocDb() && cmd.hasField(N_TO_RETURN)) {
+            if(cmd.hasField(N_TO_RETURN)) {
                 std::string const ntoreturnVal { std::to_string(cmd.getIntField(N_TO_RETURN)) };
                 cmd = cmd.removeField(N_TO_RETURN);                
                 cmd = cmd.addField(fromjson("{ limit: " + ntoreturnVal + " }").firstElement());                            

@@ -392,6 +392,11 @@ string DBClientBase::getLastErrorString(const BSONObj& info) {
         BSONElement e = info["errmsg"];
         if (e.eoo())
             return "";
+        std::string errStr = e.str();
+        if (errStr.find("no such command: 'getlasterror'") != std::string::npos ||
+            errStr.find("no such cmd: getlasterror") != std::string::npos) {
+            return "";
+        }
         if (e.type() == Object)
             return "getLastError command failed: " + e.toString();
         return "getLastError command failed: " + e.str();
@@ -768,7 +773,18 @@ void DBClientBase::insert(const string& ns, const vector<BSONObj>& v, int flags)
         OpMsgRequest::fromDBAndBody(nss.db(), BSON("insert" << nss.coll() << "ordered" << ordered));
     request.sequences.push_back({"documents", v});
 
-    runFireAndForgetCommand(std::move(request));
+    auto reply = runCommand(std::move(request));
+    auto replyObj = reply->getCommandReply();
+    if (!replyObj["ok"].trueValue()) {
+        uasserted(ErrorCodes::CommandFailed, replyObj["errmsg"].str());
+    }
+    if (replyObj.hasField("writeErrors")) {
+        BSONObjIterator it(replyObj["writeErrors"].Obj());
+        if (it.more()) {
+            BSONObj error = it.next().Obj();
+            uasserted(ErrorCodes::WriteConcernFailed, error["errmsg"].str());
+        }
+    }
 }
 
 void DBClientBase::remove(const string& ns, Query obj, int flags) {
@@ -778,7 +794,18 @@ void DBClientBase::remove(const string& ns, Query obj, int flags) {
     auto request = OpMsgRequest::fromDBAndBody(nss.db(), BSON("delete" << nss.coll()));
     request.sequences.push_back({"deletes", {BSON("q" << obj.obj << "limit" << limit)}});
 
-    runFireAndForgetCommand(std::move(request));
+    auto reply = runCommand(std::move(request));
+    auto replyObj = reply->getCommandReply();
+    if (!replyObj["ok"].trueValue()) {
+        uasserted(ErrorCodes::CommandFailed, replyObj["errmsg"].str());
+    }
+    if (replyObj.hasField("writeErrors")) {
+        BSONObjIterator it(replyObj["writeErrors"].Obj());
+        if (it.more()) {
+            BSONObj error = it.next().Obj();
+            uasserted(ErrorCodes::WriteConcernFailed, error["errmsg"].str());
+        }
+    }
 }
 
 void DBClientBase::update(const string& ns, Query query, BSONObj obj, bool upsert, bool multi) {
@@ -789,7 +816,18 @@ void DBClientBase::update(const string& ns, Query query, BSONObj obj, bool upser
         {"updates",
          {BSON("q" << query.obj << "u" << obj << "upsert" << upsert << "multi" << multi)}});
 
-    runFireAndForgetCommand(std::move(request));
+    auto reply = runCommand(std::move(request));
+    auto replyObj = reply->getCommandReply();
+    if (!replyObj["ok"].trueValue()) {
+        uasserted(ErrorCodes::CommandFailed, replyObj["errmsg"].str());
+    }
+    if (replyObj.hasField("writeErrors")) {
+        BSONObjIterator it(replyObj["writeErrors"].Obj());
+        if (it.more()) {
+            BSONObj error = it.next().Obj();
+            uasserted(ErrorCodes::WriteConcernFailed, error["errmsg"].str());
+        }
+    }
 }
 
 void DBClientBase::update(const string& ns, Query query, BSONObj obj, int flags) {
