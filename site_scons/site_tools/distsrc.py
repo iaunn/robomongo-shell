@@ -22,7 +22,10 @@ import time
 import zipfile
 import io
 
-from distutils.spawn import find_executable
+try:
+    from distutils.spawn import find_executable
+except ImportError:
+    from shutil import which as find_executable
 
 __distsrc_callbacks = []
 

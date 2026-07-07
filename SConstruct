@@ -2007,6 +2007,8 @@ def doConfigure(myenv):
     global free_monitoring
     global http_client
 
+    myenv['MONGO_MODULES'] = [m.name for m in mongo_modules]
+
     # Check that the compilers work.
     #
     # TODO: Currently, we have some flags already injected. Eventually, this should test the
@@ -3225,9 +3227,10 @@ def doConfigure(myenv):
 
         # libcurl on all other platforms
         if conf.CheckLibWithHeader(
-            "curl",
-            ["curl/curl.h"], "C",
-            "curl_global_init(0);",
+            libs=["curl"],
+            header=["curl/curl.h"],
+            language="C",
+            call="curl_global_init(0);",
             autoadd=False):
             return True
 

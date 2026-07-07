@@ -18,7 +18,13 @@ import os
 import re
 import subprocess
 
-from pkg_resources import parse_version
+try:
+    from pkg_resources import parse_version
+except ImportError:
+    def parse_version(version_str):
+        import re
+        parts = re.findall(r'\d+', version_str)
+        return tuple(int(x) for x in parts)
 
 icecream_version_min = '1.1rc2'
 

@@ -30,11 +30,11 @@ if [ $1 == debug ]; then
   BUILD_TYPE_STR=debug
 fi
 
-# MacOS
-# 1. MongoDB 4.2 requires macOS 10.13 or later
-# 2. src/mongo/util/net/ssl_manager_apple.cpp:977:18: error: 'SSLCopyRequestedPeerName' 
-#    is only available on macOS 10.13 or newer
-MACOS_FLAGS="-mmacosx-version-min=10.13 -Wno-unused-function"
+MACOS_VERSION_MIN="10.13"
+if [[ "$(uname -m)" == "arm64" ]]; then
+  MACOS_VERSION_MIN="11.0"
+fi
+MACOS_FLAGS="-mmacosx-version-min=${MACOS_VERSION_MIN} -Wno-unused-function -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
 
 cd $PROJECT_DIR
 echo -------------------------------------
@@ -42,7 +42,7 @@ echo Building in $BUILD_TYPE_STR mode:
 echo -------------------------------------
 
 if [[ "$(uname)" == *"Darwin"* ]]; then
-  scons mongo --ssl CCFLAGS=$MACOS_FLAGS LINKFLAGS=$MACOS_FLAGS -j8 $BUILD_TYPE  
+  scons mongo --ssl CCFLAGS="$MACOS_FLAGS" LINKFLAGS="$MACOS_FLAGS" CPPPATH=/opt/homebrew/opt/curl/include LIBPATH=/opt/homebrew/opt/curl/lib --disable-warnings-as-errors -j8 $BUILD_TYPE  
 elif [[ "$(uname -s)" == *"Linux"* ]]; then
   scons mongo --ssl CPPPATH=$OPENSSL_PATH/include LIBPATH=$OPENSSL_PATH/lib -j8 $BUILD_TYPE
 else 
