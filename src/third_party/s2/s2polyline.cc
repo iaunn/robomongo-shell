@@ -470,6 +470,14 @@ struct SearchState {
   inline SearchState(int i_val, int j_val, bool i_in_progress_val)
       : i(i_val), j(j_val), i_in_progress(i_in_progress_val) {}
 
+  inline bool operator<(SearchState const& rhs) const {
+    if (i < rhs.i) return true;
+    if (i > rhs.i) return false;
+    if (j < rhs.j) return true;
+    if (j > rhs.j) return false;
+    return !i_in_progress && rhs.i_in_progress;
+  }
+
   int i;
   int j;
   bool i_in_progress;

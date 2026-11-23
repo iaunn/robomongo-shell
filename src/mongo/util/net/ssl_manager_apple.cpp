@@ -1164,7 +1164,7 @@ private:
             if (conn->_init.size()) {
                 // Consume any initial bytes first.
                 auto& init = conn->_init;
-                const auto mvlen = std::max(len, init.size());
+                const auto mvlen = std::min(len, init.size());
                 std::copy(init.begin(), init.begin() + mvlen, dest + *data_len);
                 init.erase(init.begin(), init.begin() + mvlen);
                 *data_len += mvlen;
@@ -1364,8 +1364,8 @@ bool SSLManagerApple::reinitiateSSLManager()
 }
 
 StatusWith<std::pair<::SSLProtocol, ::SSLProtocol>> parseProtocolRange(const SSLParams& params) {
-    // Map disabled protocols to range.
-    bool tls10 = true, tls11 = true, tls12 = true;
+    // Map disabled protocols to range. Disable legacy TLS 1.0 and TLS 1.1 by default for security.
+    bool tls10 = false, tls11 = false, tls12 = true;
     for (const SSLParams::Protocols& protocol : params.sslDisabledProtocols) {
         if (protocol == SSLParams::Protocols::TLS1_0) {
             tls10 = false;

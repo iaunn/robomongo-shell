@@ -42,7 +42,7 @@ echo Building in $BUILD_TYPE_STR mode:
 echo -------------------------------------
 
 if [[ "$(uname)" == *"Darwin"* ]]; then
-  scons mongo --ssl CCFLAGS="$MACOS_FLAGS" LINKFLAGS="$MACOS_FLAGS" CPPPATH=/opt/homebrew/opt/curl/include LIBPATH=/opt/homebrew/opt/curl/lib --disable-warnings-as-errors -j8 $BUILD_TYPE  
+  scons mongo --ssl MONGO_VERSION=4.2.0 CCFLAGS="$MACOS_FLAGS" LINKFLAGS="$MACOS_FLAGS" CPPPATH=/opt/homebrew/opt/curl/include LIBPATH=/opt/homebrew/opt/curl/lib --disable-warnings-as-errors -j8 $BUILD_TYPE  
 elif [[ "$(uname -s)" == *"Linux"* ]]; then
   scons mongo --ssl CPPPATH=$OPENSSL_PATH/include LIBPATH=$OPENSSL_PATH/lib -j8 $BUILD_TYPE
 else 
