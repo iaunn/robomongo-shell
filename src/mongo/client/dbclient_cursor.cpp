@@ -138,11 +138,16 @@ Message DBClientCursor::_assembleInit() {
             }
 
             //// Robo 1.4.2
-            std::string const N_TO_RETURN { "ntoreturn" };
-            if(cmd.hasField(N_TO_RETURN)) {
-                int const ntoreturnVal = std::abs(cmd.getIntField(N_TO_RETURN));
-                cmd = cmd.removeField(N_TO_RETURN);
-                cmd = cmd.addField(BSON("limit" << ntoreturnVal).firstElement());
+            // The 'ntoreturn' find-command field was removed in MongoDB 5.1+/7.0. QueryRequest has
+            // already turned a negative legacy value into a positive one and 'singleBatch'
+            // (via wantMore=false), so 'ntoreturn' is simply the number of documents wanted: send it
+            // as 'limit'. 'limit' and 'ntoreturn' can never be set together (see QueryRequest::validate()).
+            static const StringData kNToReturn("ntoreturn");
+            if (auto const nToReturnElem = cmd[kNToReturn]) {
+                // Use a 64-bit read: getIntField() silently returns 0 for non-int32 values
+                long long const nToReturnVal = nToReturnElem.safeNumberLong();
+                cmd = cmd.removeField(kNToReturn);
+                cmd = cmd.addField(BSON("limit" << nToReturnVal).firstElement());
             }
 
             return assembleCommandRequest(_client, ns.db(), opts, std::move(cmd));
