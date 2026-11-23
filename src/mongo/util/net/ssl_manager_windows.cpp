@@ -1388,8 +1388,8 @@ Status SSLManagerWindows::initSSLContext(SCHANNEL_CRED* cred,
             | SCH_CRED_NO_SYSTEM_MAPPER        // Do not map certificate to user account
             | SCH_CRED_DISABLE_RECONNECTS;     // Do not support reconnects
     } else {
-        supportedProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_TLS1_1_CLIENT |
-            SP_PROT_TLS1_2_CLIENT;
+        // Robomongo: legacy TLS 1.0/1.1 are disabled by default for outgoing connections
+        supportedProtocols = SP_PROT_TLS1_2_CLIENT;
 
         cred->hRootStore = _clientEngine.CAstore;
         cred->dwFlags = cred->dwFlags           // Flags
