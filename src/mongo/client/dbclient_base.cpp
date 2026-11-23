@@ -38,6 +38,7 @@
 #include "mongo/client/dbclient_base.h"
 
 #include <algorithm>
+#include <cctype>
 #include <utility>
 
 #include "mongo/base/status.h"
@@ -392,10 +393,16 @@ string DBClientBase::getLastErrorString(const BSONObj& info) {
         BSONElement e = info["errmsg"];
         if (e.eoo())
             return "";
-        std::string errStr = e.str();
-        if (errStr.find("no such command: 'getlasterror'") != std::string::npos ||
-            errStr.find("no such cmd: getlasterror") != std::string::npos) {
-            return "";
+        // Robomongo: MongoDB 7.0 removed 'getLastError'. Writes are now checked synchronously in
+        // insert()/update()/remove(), so "command not found" here means "no pending error".
+        // Match on the error code (and the command name, case-insensitively) rather than the
+        // exact message so unrelated failures are still reported.
+        if (info["code"].numberInt() == ErrorCodes::CommandNotFound) {
+            std::string lowerMsg = e.str();
+            std::transform(lowerMsg.begin(), lowerMsg.end(), lowerMsg.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+            if (lowerMsg.find("getlasterror") != std::string::npos)
+                return "";
         }
         if (e.type() == Object)
             return "getLastError command failed: " + e.toString();
@@ -762,6 +769,16 @@ unsigned long long DBClientBase::query(stdx::function<void(DBClientCursorBatchIt
     return n;
 }
 
+namespace {
+// Robomongo: writes are run synchronously (OP_MSG with a reply) because MongoDB 7.0 removed the
+// 'getLastError' command. Reports command failures, the first write error (with the server's
+// real error code) and write concern errors.
+void runWriteCommandAndCheck(DBClientBase* conn, OpMsgRequest request) {
+    auto reply = conn->runCommand(std::move(request));
+    uassertStatusOK(getStatusFromWriteCommandReply(reply->getCommandReply()));
+}
+}  // namespace
+
 void DBClientBase::insert(const string& ns, BSONObj obj, int flags) {
     insert(ns, std::vector<BSONObj>{obj}, flags);
 }
@@ -773,18 +790,7 @@ void DBClientBase::insert(const string& ns, const vector<BSONObj>& v, int flags)
         OpMsgRequest::fromDBAndBody(nss.db(), BSON("insert" << nss.coll() << "ordered" << ordered));
     request.sequences.push_back({"documents", v});
 
-    auto reply = runCommand(std::move(request));
-    auto replyObj = reply->getCommandReply();
-    if (!replyObj["ok"].trueValue()) {
-        uasserted(ErrorCodes::CommandFailed, replyObj["errmsg"].str());
-    }
-    if (replyObj.hasField("writeErrors")) {
-        BSONObjIterator it(replyObj["writeErrors"].Obj());
-        if (it.more()) {
-            BSONObj error = it.next().Obj();
-            uasserted(ErrorCodes::WriteConcernFailed, error["errmsg"].str());
-        }
-    }
+    runWriteCommandAndCheck(this, std::move(request));
 }
 
 void DBClientBase::remove(const string& ns, Query obj, int flags) {
@@ -794,18 +800,7 @@ void DBClientBase::remove(const string& ns, Query obj, int flags) {
     auto request = OpMsgRequest::fromDBAndBody(nss.db(), BSON("delete" << nss.coll()));
     request.sequences.push_back({"deletes", {BSON("q" << obj.obj << "limit" << limit)}});
 
-    auto reply = runCommand(std::move(request));
-    auto replyObj = reply->getCommandReply();
-    if (!replyObj["ok"].trueValue()) {
-        uasserted(ErrorCodes::CommandFailed, replyObj["errmsg"].str());
-    }
-    if (replyObj.hasField("writeErrors")) {
-        BSONObjIterator it(replyObj["writeErrors"].Obj());
-        if (it.more()) {
-            BSONObj error = it.next().Obj();
-            uasserted(ErrorCodes::WriteConcernFailed, error["errmsg"].str());
-        }
-    }
+    runWriteCommandAndCheck(this, std::move(request));
 }
 
 void DBClientBase::update(const string& ns, Query query, BSONObj obj, bool upsert, bool multi) {
@@ -816,18 +811,7 @@ void DBClientBase::update(const string& ns, Query query, BSONObj obj, bool upser
         {"updates",
          {BSON("q" << query.obj << "u" << obj << "upsert" << upsert << "multi" << multi)}});
 
-    auto reply = runCommand(std::move(request));
-    auto replyObj = reply->getCommandReply();
-    if (!replyObj["ok"].trueValue()) {
-        uasserted(ErrorCodes::CommandFailed, replyObj["errmsg"].str());
-    }
-    if (replyObj.hasField("writeErrors")) {
-        BSONObjIterator it(replyObj["writeErrors"].Obj());
-        if (it.more()) {
-            BSONObj error = it.next().Obj();
-            uasserted(ErrorCodes::WriteConcernFailed, error["errmsg"].str());
-        }
-    }
+    runWriteCommandAndCheck(this, std::move(request));
 }
 
 void DBClientBase::update(const string& ns, Query query, BSONObj obj, int flags) {
